@@ -1,0 +1,321 @@
+//import console;
+import win.ui;
+/*DSG{{*/
+var winform = win.form(text="excel to kml格式转换工具";right=311;bottom=263)
+winform.add(
+button={cls="button";text="打开文件";left=16;top=16;right=88;bottom=40;z=1};
+button2={cls="button";text="帮助";left=16;top=224;right=88;bottom=248;z=11};
+button3={cls="button";text="转换";left=224;top=224;right=296;bottom=248;z=12};
+combobox={cls="combobox";left=144;top=64;right=296;bottom=88;edge=1;items={};mode="dropdown";z=3};
+combobox2={cls="combobox";left=144;top=104;right=296;bottom=128;edge=1;items={};mode="dropdown";z=8};
+combobox3={cls="combobox";left=144;top=144;right=296;bottom=168;edge=1;items={};mode="dropdown";z=9};
+combobox4={cls="combobox";left=144;top=184;right=296;bottom=208;edge=1;items={};mode="dropdown";z=10};
+edit={cls="edit";left=104;top=16;right=296;bottom=40;edge=1;hidesel=1;multiline=1;readonly=1;z=2};
+static={cls="static";text="选择数据所在表项：";left=16;top=64;right=128;bottom=88;center=1;transparent=1;z=4};
+static2={cls="static";text="选择名称所在列名：";left=16;top=104;right=128;bottom=128;center=1;transparent=1;z=5};
+static3={cls="static";text="选择经度所在列名：";left=16;top=144;right=128;bottom=168;center=1;transparent=1;z=6};
+static4={cls="static";text="选择纬度所在列名：";left=16;top=184;right=128;bottom=208;center=1;transparent=1;z=7}
+)
+/*}}*/
+
+import win;
+import process;
+
+if(not _STUDIO_INVOKED) {
+    if(not ..io.exist(..io.joinpath(..io._exedir, "libxl32.dll"))) {
+		win.msgboxErr("libxl32.dll需要位于exe同目录下！");
+    	process.kill(process.getId());
+	}
+}
+
+
+import aaz.libxl;
+
+// 全局变量
+g_book = null;
+g_sheet = {}; 
+g_header = {}; 
+g_sheetid = 0;
+
+var LoadExcel = function(ExcelPath){
+	if(ExcelPath == null) {
+	    return;
+	}
+	
+	if(g_book != null) {
+	    g_book.release();
+	    g_book = null;
+	}
+	
+	g_book = aaz.libxl.createBook();
+	g_book.setKey();
+	var ret = g_book.load(ExcelPath);
+	if(ret == 0) {
+	    win.msgboxErr("加载excel文件失败！");
+	    if(g_book != null) {
+	    	g_book.release();
+	    	g_book = null;
+		}
+	}
+	return ret;
+}
+
+
+// 返回 sheet序号 -> 表名字
+var ReadExcelSheet = function(){
+	if(not g_book) {
+	    return null;
+	}
+	
+	var t = {};
+	
+	var sheetNums = g_book.count;
+	for(i=1;sheetNums;1){
+	    t[i] = g_book.getSheetName(i);
+    	if( string.isUnicode(t[i]) ) {
+		    t[i] = string.fromUnicode(t[i]);
+		}
+	}
+	if(t) {
+	    g_sheet = t;
+	}
+}
+
+// 返回 列序号 -> 列表头名字
+var ReadExcelHeader = function(sheetid){
+	var sheet = g_book.getSheet(sheetid);  
+	var t = {};
+	for(j = sheet.firstCol; sheet.lastCol; 1){
+    	var i = sheet.firstRow
+		var ret;
+		
+		if(sheet.cellType(i, j) == 2 /*CELLTYPE_STRING*/ ) {
+			ret = sheet.readStr( i, j );
+			// t[tostring(ret)] = tonumber(j);
+			
+			if( string.isUnicode(ret) ) {
+		    	t[tonumber(j)] = string.fromUnicode(ret);
+			} else {
+		    	t[tonumber(j)] = ret;
+			}
+		}
+	}
+	//return t;
+	if(#t) {
+	    g_header = t;
+	}
+	//console.dump("g_header", g_header);
+}
+
+var GetAllColumn = function(ColumnIndex){
+	var t = {};
+	var j = ColumnIndex;
+	// 忽略header数据
+	if(not g_sheetid) {
+	    return t;
+	}
+	var sheet = g_book.getSheet(g_sheetid);  
+	for(i=sheet.firstRow + 1; sheet.lastRow; 1){
+	    var ret;
+		select(sheet.cellType(i, j) ) {
+			case 0/*CELLTYPE_EMPTY*/ {
+				//io.print(i, j , "空")
+				//table.push(t, null)
+			}
+			case 1/*CELLTYPE_NUMBER*/ {
+				ret = sheet.readNum(i, j)
+				t[tonumber(i)] = tonumber(ret);
+				//table.push(t, tostring(ret))
+			}
+			case 2/*CELLTYPE_STRING*/ {
+				ret = sheet.readStr( i, j )
+				
+				if( string.isUnicode(ret) ) {
+		    	    t[tonumber(i)] = string.fromUnicode(ret);
+		    	    //table.push(t, string.fromUnicode(ret))
+				} else {
+		    		t[tonumber(i)] = ret;
+		    		//table.push(t, (ret))
+				}
+				
+			}
+		}
+	}
+	return t;
+}
+
+var ComboboxAddData = function(){
+	ReadExcelSheet();
+	var t = g_sheet;
+	//console.dump(t);
+	if(t != null) {
+		winform.combobox.clear();
+		for(i=1;#t;1){
+			winform.combobox.add(t[i]);
+			//winform.combobox.selText(t[i]);
+		}
+	}
+	
+}
+
+import fsys.dlg;
+
+// 打开文件按钮 被单击
+winform.button.oncommand = function(id,event){
+	var path = fsys.dlg.open("Excel表格文件(*.xlsx;*.xls)|*.xlsx;*.xls|所有文件(*.*)|*.*",,,winform);
+	if(not path){
+		return;
+	}
+	winform.edit.text = path;
+	if(0 == LoadExcel(path)) {
+	    return;
+	}
+	ComboboxAddData();
+}
+
+// 选择sheet表 选项改变时
+winform.combobox.onListChange = function(id,event){
+	var text = winform.combobox.selText;
+	
+	winform.combobox2.clear();
+	winform.combobox3.clear();
+	winform.combobox4.clear();
+	//g_header = {};
+	
+	//console.dump(g_sheet);
+	if(#g_sheet) {
+	    var r = table.indexOf(g_sheet, text);
+	    if(r != null) {
+	        ReadExcelHeader(r);
+	        if(#g_header) {
+	            g_sheetid = r
+/*	            
+	            for(i=1;#g_header;1){
+	                console.dump("winform.combobox.onListChange", #g_header, g_header[i])
+
+	            	if(g_header[i]) {
+	            	    winform.combobox2.add(g_header[i]);
+	            	    winform.combobox3.add(g_header[i]);
+	            	    winform.combobox4.add(g_header[i]);
+	            	}
+*/
+
+                	for k,v in g_header  { 
+    					/*
+    					k为键,v是匹配的值,
+    					在这里键值并不会按上面创建表的键值顺序输出
+    					*/
+    					//console.log(k,v);
+    					winform.combobox2.add(v);
+	            	    winform.combobox3.add(v);
+	            	    winform.combobox4.add(v);
+					}
+                
+	            }
+	        }
+	    }
+	
+}
+
+winform.onClose = function(hwnd,message,wParam,lParam){
+    if(g_book != null) {
+	    g_book.release();
+	    g_book = null;
+	}
+}
+
+winform.button3.oncommand = function(id,event){
+	//open(.(指定文件类型,对话框标题,默认目录,父窗口,选项参数,默认文件名)
+	
+	var TargetName = fsys.dlg.open("KML文件(*.kml)|*.kml|所有文件(*.*)|*.*","另存为kml",,winform,,"new.kml");
+	if(not TargetName){
+		return;
+	}
+	
+	var PointName = winform.combobox2.selText;
+	var PointNameIndex;
+	for k,v in g_header  { 
+    	if(v == PointName) {
+    	    PointNameIndex = k;
+    	    break;
+    	}
+	}
+	var PointNameList = GetAllColumn(PointNameIndex);
+	
+	// 经度
+	var LongtitudeName = winform.combobox3.selText;
+	var LongtitudeIndex;
+	for k,v in g_header  { 
+    	if(v == LongtitudeName) {
+    	    LongtitudeIndex = k;
+    	    break;
+    	}
+	}
+	var LongtitudeList = GetAllColumn(LongtitudeIndex);
+	
+	// 纬度
+	var LatitudeName = winform.combobox4.selText;
+	var LatitudeIndex;
+	for k,v in g_header  { 
+    	if(v == LatitudeName) {
+    	    LatitudeIndex = k;
+    	    break;
+    	}
+	}
+	var LatitudeList = GetAllColumn(LatitudeIndex);
+	
+	
+	//console.dump("PointNameList", PointNameList)
+	//console.dump("LongtitudeList", LatitudeList)
+	//console.dump("LatitudeList", LatitudeList)
+	
+	
+	string.save(TargetName, "")
+	string.save(TargetName, '<?xml version="1.0" encoding="UTF-8"?>' + '\n' + '<kml xmlns="http://www.opengis.net/kml/2.2">\n\t<Document>\n\t' ,true)
+/*
+	for(i=1;#(PointNameList);1){
+		
+		if(PointNameList[i]) {
+			console.dump(PointNameList[i]);
+		    string.save(TargetName, "<Placemark>\n\t",true)
+		    string.save(TargetName, "<name>" + PointNameList[i] + "</name>\n",true)
+		    string.save(TargetName, "\t<description>\n\t\t</description>\n\t",true)
+		    string.save(TargetName, "<Point>\n\t\t<coordinates>"+ LongtitudeList[i] + ","+ LatitudeList[i] + ",0</coordinates>\n\t</Point>", true)
+
+		    
+            //self.kmlFile.write('<Point>\n\t\t<coordinates>'+row[self.lonPosit]+ ','+ row[self.latPosit]+ ',0</coordinates>\n\t</Point>')
+            //self.kmlFile.write('\n\t</Placemark>\n\t')
+            string.save(TargetName, '\n\t</Placemark>\n\t',true)
+		
+		}
+	
+	}
+*/
+    for k,v in PointNameList  { 
+    	string.save(TargetName, '<Placemark>\n\t',true)
+		string.save(TargetName, "<name>" + PointNameList[k] + '</name>\n',true)
+		string.save(TargetName, '\t<description>\n\t\t</description>\n\t',true)
+		string.save(TargetName, '<Point>\n\t\t<coordinates>'+ LongtitudeList[k] + ","+ LatitudeList[k] + ',0</coordinates>\n\t</Point>', true)
+
+		
+        //self.kmlFile.write('<Point>\n\t\t<coordinates>'+row[self.lonPosit]+ ','+ row[self.latPosit]+ ',0</coordinates>\n\t</Point>')
+        //self.kmlFile.write('\n\t</Placemark>\n\t')
+        string.save(TargetName, '\n\t</Placemark>\n\t',true)
+	}
+    
+    
+    
+	string.save(TargetName, '</Document>\n</kml>',true)
+	
+	
+	
+	//console.dump(PointNameList);
+	
+	//var text = winform.combobox.selText;
+	//var text = winform.combobox.selText;
+	win.msgbox("转换成功");
+}
+
+winform.setIcon($"~/res/excel转kml工具.ico", $"~/res/excel转kml工具.ico");
+winform.show();
+win.loopMessage();

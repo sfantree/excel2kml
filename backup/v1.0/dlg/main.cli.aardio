@@ -1,0 +1,106 @@
+/***
+io.open()
+import console;
+import aaz.libxl;
+
+var book = aaz.libxl.createBook();
+book.setKey();
+book.load("/custom.xls");
+
+var sheetNums = book.count;
+io.print(sheetNums);
+
+for(i=1;sheetNums;1){
+	//var eachSheet = book.getSheet(i);
+    console.dump(tostring(i), book.getSheetName(i));
+}
+
+var sheet = book.getSheet(1);   
+
+
+
+// 获得excel文件的所有表
+
+var getAllSheetName = function(xlsxFile){
+	if(not xlsxFile) {
+	    
+	}
+}
+
+
+
+
+/**
+for(i=sheet.firstRow; sheet.lastRow; 1){
+	for(j=sheet.firstCol; sheet.lastCol; 1){
+		var ret;
+		select(sheet.cellType(i, j) ) {
+			case 0/*CELLTYPE_EMPTY*/ {
+				io.print(i, j , "空")
+			}
+			case 1/*CELLTYPE_NUMBER*/ {
+				ret = sheet.readNum(i, j)
+				io.print(i, j ,"数字", ret)
+			}
+			case 2/*CELLTYPE_STRING*/ {
+				ret = sheet.readStr( i, j )
+				io.print(i, j ,"字符串", ret)
+			}
+		}
+	}
+}
+**/
+var t = {};
+for(j = sheet.firstCol; sheet.lastCol; 1){
+    var i = sheet.firstRow
+	var ret;
+	
+	if(sheet.cellType(i, j) == 2 /*CELLTYPE_STRING*/ ) {
+		ret = sheet.readStr( i, j );
+		// t[tostring(ret)] = tonumber(j);
+		
+		if( string.isUnicode(ret) ) {
+		    t[tonumber(j)] = string.fromUnicode(ret);
+		} else {
+		    t[tonumber(j)] = ret;
+		}
+	}
+}
+console.dump(t);
+console.dump(t[5]);
+
+
+var GetAllColumn = function(ColumnIndex){
+	var t = {};
+	var j = ColumnIndex;
+	for(i=sheet.firstRow + 1; sheet.lastRow; 1){
+	    var ret;
+		select(sheet.cellType(i, j) ) {
+			case 0/*CELLTYPE_EMPTY*/ {
+				//io.print(i, j , "空")
+			}
+			case 1/*CELLTYPE_NUMBER*/ {
+				ret = sheet.readNum(i, j)
+				t[tonumber(i)] = tostring(ret);
+			}
+			case 2/*CELLTYPE_STRING*/ {
+				ret = sheet.readStr( i, j )
+				
+				if( string.isUnicode(ret) ) {
+		    	    t[tonumber(i)] = string.fromUnicode(ret);
+				} else {
+		    		t[tonumber(i)] = ret;
+				}
+				
+			}
+		}
+	}
+	return t;
+}
+
+t = GetAllColumn(1);
+console.dump(t);
+
+book.release()
+execute("pause")
+***/
